@@ -374,32 +374,23 @@ print(f"{STORE_NAME} bot is running...")
 async def handle_message(update, context):
     await start(update, context)
 
-
 def main():
-
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN missing. Add it in .env")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
-    )
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("orders", orders_cmd))
     app.add_handler(CommandHandler("products_count", products_count))
-
     app.add_handler(order_conv)
     app.add_handler(search_conv)
-
-    app.add_handler(
-        CallbackQueryHandler(search_page_handler, pattern=r"^searchpage:")
-    )
-
+    app.add_handler(CallbackQueryHandler(search_page_handler, pattern=r"^searchpage:"))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+    print(f"{STORE_NAME} bot is running...")
     app.run_polling()
 
 
