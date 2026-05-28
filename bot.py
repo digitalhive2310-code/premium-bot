@@ -328,7 +328,7 @@ async def products_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Total products: {len(load_products())}")
 
 
-    def main():
+  def main():
 
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN missing. Add it in .env")
@@ -338,6 +338,8 @@ async def products_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
+
+    app.run_polling()
     order_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(order_start, pattern=r"^order:")],
         states={
