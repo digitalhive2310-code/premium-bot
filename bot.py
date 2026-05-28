@@ -23,14 +23,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 STORE_NAME = os.getenv("STORE_NAME", "Premium On Budget")
-COMMUNITY_LINK = os.getenv("COMMUNITY_LINK", "https://t.me/+DICtE_XZN40wMTBl")
+COMMUNITY_LINK = os.getenv("COMMUNITY_LINK", "https://t.me/+dICte_XZN4owMTBl")
 WHATSAPP_NUMBER = os.getenv("WHATSAPP_NUMBER", "918920803981")
 UPI_ID = os.getenv("UPI_ID", "Ask admin for UPI ID")
 BANK_DETAILS = os.getenv("BANK_DETAILS", "Ask admin for bank details")
 CRYPTO_DETAILS = os.getenv("CRYPTO_DETAILS", "Ask admin for crypto wallet")
 GIFT_CARD_DETAILS = os.getenv("GIFT_CARD_DETAILS", "Ask admin for gift card details")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()]
-USD_RATE = float(os.getenv("USD_RATE", "96.01"))  # 1 USD = INR rate; update anytime in .env
+USD_RATE = float(os.getenv("USD_RATE", "96.01"))  # 1 USD - INR rate; update anytime in .env
 
 BASE_DIR = Path(__file__).parent
 PRODUCTS_FILE = BASE_DIR / "products.json"
@@ -40,16 +40,13 @@ EMAIL, WHATSAPP, TELEGRAM_USERNAME, PAYMENT_METHOD, PAYMENT_PROOF = range(5)
 SEARCH_QUERY = 20
 PAGE_SIZE = 7
 
-
 def load_products() -> List[Dict[str, Any]]:
     with open(PRODUCTS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-
 def save_orders(orders: List[Dict[str, Any]]) -> None:
     with open(ORDERS_FILE, "w", encoding="utf-8") as f:
         json.dump(orders, f, indent=2, ensure_ascii=False)
-
 
 def load_orders() -> List[Dict[str, Any]]:
     if not ORDERS_FILE.exists():
@@ -57,47 +54,40 @@ def load_orders() -> List[Dict[str, Any]]:
     with open(ORDERS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-
 def money(product: Dict[str, Any]) -> str:
     if product.get("price_inr_max"):
         low = product["price_inr"]
         high = product["price_inr_max"]
-        return f"₹{low}–₹{high} / ${low/USD_RATE:.2f}–${high/USD_RATE:.2f} approx"
+        return f"₹{low}-₹{high} / ${low/USD_RATE:.2f}-${high/USD_RATE:.2f} approx"
     return f"₹{product['price_inr']} / ${product['price_inr']/USD_RATE:.2f} approx"
-
 
 def main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🛍 Browse Categories", callback_data="categories")],
+        [InlineKeyboardButton("🛍️ Browse Categories", callback_data="categories")],
         [InlineKeyboardButton("🔎 Search Product", callback_data="search")],
-        [InlineKeyboardButton("💬 Order on WhatsApp", url=f"https://wa.me/{WHATSAPP_NUMBER}")],
+        [InlineKeyboardButton("💬 Order on WhatsApp", url=f"https://wa.me/{WHATSAPP_NUMBER}?text=Hi%20I%20want%20to%20buy")],
         [InlineKeyboardButton("👑 Join Premium Community", url=COMMUNITY_LINK)],
     ])
-
 
 def back_home_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Home", callback_data="home")]])
 
-
 def get_categories() -> List[str]:
     return sorted({p["category"] for p in load_products()})
 
-
 def product_by_id(product_id: str) -> Dict[str, Any] | None:
     return next((p for p in load_products() if p["id"] == product_id), None)
-
 
 def product_text(product: Dict[str, Any]) -> str:
     return (
         f"✨ <b>{product['name']}</b>\n\n"
         f"💰 <b>Price:</b> {money(product)}\n"
-        f"⏳ <b>Duration:</b> {product.get('duration','N/A')}\n"
-        f"🔐 <b>Type:</b> {product.get('type','N/A')}\n"
-        f"🛡 <b>Warranty:</b> {product.get('warranty','N/A')}\n\n"
-        f"📌 <b>Description:</b> {product.get('description','')}\n\n"
-        f"📧 Delivery via email after payment confirmation."
+        f"⏳ <b>Duration:</b> {product.get('duration', 'N/A')}\n"
+        f"🛡️ <b>Type:</b> {product.get('type', 'N/A')}\n"
+        f"⚡ <b>Warranty:</b> {product.get('warranty', 'N/A')}\n"
+        f"📝 <b>Description:</b> {product.get('description', '')}\n\n"
+        f"📦 Delivery via email after payment confirmation."
     )
-
 
 def products_keyboard(products: List[Dict[str, Any]], prefix: str, page: int) -> InlineKeyboardMarkup:
     total_pages = max(1, math.ceil(len(products) / PAGE_SIZE))
@@ -114,22 +104,20 @@ def products_keyboard(products: List[Dict[str, Any]], prefix: str, page: int) ->
     rows.append([InlineKeyboardButton("🏠 Home", callback_data="home")])
     return InlineKeyboardMarkup(rows)
 
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
-        f"👑 <b>Welcome to {STORE_NAME}</b>\n\n"
+        f"🎁 Welcome to {STORE_NAME}!\n\n"
         "Premium subscriptions. Budget-friendly prices. Smooth delivery.\n\n"
         "✨ Browse premium products\n"
         "🔎 Search by product name\n"
         "📧 Delivery via email\n"
-        "🛡 Warranty mentioned on every product\n\n"
+        "🛡️ Warranty mentioned on every product\n\n"
         "Choose an option below."
     )
     if update.message:
         await update.message.reply_text(text, reply_markup=main_menu(), parse_mode=ParseMode.HTML)
     else:
         await update.callback_query.edit_message_text(text, reply_markup=main_menu(), parse_mode=ParseMode.HTML)
-
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -144,14 +132,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "categories":
         rows = [[InlineKeyboardButton(cat, callback_data=f"cat:{cat}:0")] for cat in get_categories()]
         rows.append([InlineKeyboardButton("🏠 Home", callback_data="home")])
-        await query.edit_message_text("🛍 <b>Select a category</b>", reply_markup=InlineKeyboardMarkup(rows), parse_mode=ParseMode.HTML)
+        await query.edit_message_text("📁 <b>Select a category</b>", reply_markup=InlineKeyboardMarkup(rows), parse_mode=ParseMode.HTML)
         return
     if data.startswith("cat:"):
         _, category, page = data.split(":", 2)
         page = int(page)
         items = [p for p in load_products() if p["category"] == category]
         await query.edit_message_text(
-            f"🛍 <b>{category}</b> products:",
+            f"📁 <b>{category}</b> products:",
             reply_markup=products_keyboard(items, f"cat:{category}", page),
             parse_mode=ParseMode.HTML,
         )
@@ -163,8 +151,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("Product not found.", reply_markup=back_home_keyboard())
             return
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Order in Bot", callback_data=f"order:{product_id}")],
-            [InlineKeyboardButton("💬 Order on WhatsApp", url=f"https://wa.me/{WHATSAPP_NUMBER}?text=Hi%20I%20want%20{product['name'].replace(' ', '%20')}")],
+            [InlineKeyboardButton("🛒 Order in Bot", callback_data=f"order:{product_id}")],
+            [InlineKeyboardButton("💬 Order on WhatsApp", url=f"https://wa.me/{WHATSAPP_NUMBER}?text=Hi%20I%20want%20to%20buy%20{product['name']}".replace(' ', '%20'))],
             [InlineKeyboardButton("👑 Join Community", url=COMMUNITY_LINK)],
             [InlineKeyboardButton("🏠 Home", callback_data="home")],
         ])
@@ -173,7 +161,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "search":
         await query.edit_message_text("🔎 Send me the product name you want to search.", reply_markup=back_home_keyboard())
         return SEARCH_QUERY
-
 
 async def order_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -185,23 +172,20 @@ async def order_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     context.user_data["order"] = {"product_id": product_id, "product_name": product["name"], "price": money(product)}
     await query.edit_message_text(
-        f"✅ <b>Order Started</b>\n\nProduct: <b>{product['name']}</b>\nPrice: <b>{money(product)}</b>\n\n📧 Please send your email address for delivery.",
+        f"🛒 <b>Order Started</b>\n\nProduct: {product['name']}\nPrice: {money(product)}\n\n📧 Please send your email address for delivery.",
         parse_mode=ParseMode.HTML,
     )
     return EMAIL
-
 
 async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["order"]["email"] = update.message.text.strip()
     await update.message.reply_text("📱 Send your WhatsApp number.")
     return WHATSAPP
 
-
 async def get_whatsapp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["order"]["whatsapp"] = update.message.text.strip()
-    await update.message.reply_text("👤 Send your Telegram username. Example: @username")
+    await update.message.reply_text("📱 Send your Telegram username. Example: @username")
     return TELEGRAM_USERNAME
-
 
 async def get_telegram_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["order"]["telegram_username"] = update.message.text.strip()
@@ -211,7 +195,6 @@ async def get_telegram_username(update: Update, context: ContextTypes.DEFAULT_TY
     ])
     await update.message.reply_text("💳 Choose your payment method:", reply_markup=kb)
     return PAYMENT_METHOD
-
 
 async def payment_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -229,7 +212,6 @@ async def payment_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML,
     )
     return PAYMENT_PROOF
-
 
 async def payment_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
     order = context.user_data.get("order", {})
@@ -249,24 +231,23 @@ async def payment_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     admin_text = (
-        f"🆕 New Order #{order['order_id']}\n"
-        f"Product: {order['product_name']}\n"
-        f"Price: {order['price']}\n"
-        f"Email: {order['email']}\n"
-        f"WhatsApp: {order['whatsapp']}\n"
-        f"Telegram: {order['telegram_username']}\n"
-        f"Payment: {order['payment_method']}\n"
-        f"Proof: {order['payment_proof']}\n"
-        f"Customer: {order['customer_name']} ({order['customer_id']})"
+        f"🔔 <b>New Order #{order['order_id']}</b>\n"
+        f"📦Product: {order['product_name']}\n"
+        f"💰Price: {order['price']}\n"
+        f"📧Email: {order['email']}\n"
+        f"📱WhatsApp: {order['whatsapp']}\n"
+        f"💬Telegram: {order['telegram_username']}\n"
+        f"💳Method: {order['payment_method']}\n"
+        f"🧾Proof: {order['payment_proof']}\n"
+        f"👤Customer: {order['customer_name']} ({order['customer_id']})"
     )
     for admin_id in ADMIN_IDS:
         try:
-            await context.bot.send_message(admin_id, admin_text)
+            await context.bot.send_message(admin_id, admin_text, parse_mode=ParseMode.HTML)
         except Exception as e:
             logging.warning("Could not notify admin %s: %s", admin_id, e)
     context.user_data.pop("order", None)
     return ConversationHandler.END
-
 
 async def search_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.message.text.strip().lower()
@@ -281,7 +262,6 @@ async def search_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["search_results"] = results
     return ConversationHandler.END
 
-
 async def search_page_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -289,12 +269,10 @@ async def search_page_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     results = context.user_data.get("search_results", [])
     await query.edit_message_reply_markup(reply_markup=products_keyboard(results, "searchpage", page))
 
-
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("Cancelled. Use /start to open the store again.")
     return ConversationHandler.END
-
 
 async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
@@ -303,9 +281,9 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     orders = load_orders()
     pending = sum(1 for o in orders if o.get("status") == "Pending")
     await update.message.reply_text(
-        f"👑 Admin Panel\n\nTotal orders: {len(orders)}\nPending orders: {pending}\n\nCommands:\n/orders - recent orders\n/products_count - total products",
+        f"📊 <b>Admin Panel</b>\n\nTotal orders: {len(orders)}\nPending orders: {pending}\n\nCommands:\n/orders - recent orders\n/products_count - total products",
+        parse_mode=ParseMode.HTML
     )
-
 
 async def orders_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
@@ -315,18 +293,19 @@ async def orders_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not orders:
         await update.message.reply_text("No orders yet.")
         return
-    text = "📦 Recent Orders\n\n"
+    text = "📋 <b>Recent Orders</b>\n\n"
     for o in orders:
-        text += f"#{o['order_id']} | {o['product_name']} | {o['status']} | {o['email']}\n"
-    await update.message.reply_text(text)
-
+        text += f"• #{o['order_id']} | {o['product_name']} | {o['status']} | {o['email']}\n"
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 async def products_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
         await update.message.reply_text("Admin access only.")
         return
-    await update.message.reply_text(f"Total products: {len(load_products())}")
+    await update.message.reply_text(f"📦 Total products: {len(load_products())}")
 
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await start(update, context)
 
 def main():
     if not BOT_TOKEN:
@@ -352,44 +331,25 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Register conversation handlers first
     app.add_handler(order_conv)
     app.add_handler(search_conv)
-    
+
+    # Admin & General command handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("orders", orders_cmd))
     app.add_handler(CommandHandler("products_count", products_count))
+
+    # Fallback query handlers
+    app.add_handler(CallbackQueryHandler(search_page_handler, pattern=r"^searchpage:"))
+    app.add_handler(CallbackQueryHandler(button_handler))
     
-    app.add_handler(CallbackQueryHandler(search_page_handler, pattern=r"^searchpage:"))
-    app.add_handler(CallbackQueryHandler(button_handler))
-
-    app.run_polling()
-
-print(f"{STORE_NAME} bot is running...")
-
-async def handle_message(update, context):
-    await start(update, context)
-
-def main():
-    if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN missing. Add it in .env")
-
-    app = Application.builder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin))
-    app.add_handler(CommandHandler("orders", orders_cmd))
-    app.add_handler(CommandHandler("products_count", products_count))
-    app.add_handler(order_conv)
-    app.add_handler(search_conv)
-    app.add_handler(CallbackQueryHandler(search_page_handler, pattern=r"^searchpage:"))
-    app.add_handler(CallbackQueryHandler(button_handler))
+    # Catch-all text messages handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print(f"{STORE_NAME} bot is running...")
     app.run_polling()
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
