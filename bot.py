@@ -328,20 +328,12 @@ async def products_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Total products: {len(load_products())}")
 
 
-  def main():
-
+def main():
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN missing. Add it in .env")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
-    )
-
-    app.run_polling()
-
-    app.run_polling()
     order_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(order_start, pattern=r"^order:")],
         states={
@@ -360,14 +352,19 @@ async def products_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(order_conv)
+    app.add_handler(search_conv)
+    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("orders", orders_cmd))
     app.add_handler(CommandHandler("products_count", products_count))
-    app.add_handler(order_conv)
-    app.add_handler(search_conv)
+    
     app.add_handler(CallbackQueryHandler(search_page_handler, pattern=r"^searchpage:"))
     app.add_handler(CallbackQueryHandler(button_handler))
+
+    app.run_polling()
 
 print(f"{STORE_NAME} bot is running...")
 
