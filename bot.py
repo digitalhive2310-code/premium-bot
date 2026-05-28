@@ -362,7 +362,14 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
 
     print(f"{STORE_NAME} bot is running...")
-    app.run_polling()
+    from telegram.ext import MessageHandler, filters
+
+async def handle_message(update, context):
+    await start(update, context)
+
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+app.run_polling()
 
 
 if __name__ == "__main__":
