@@ -335,8 +335,9 @@ async def products_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+    )
     order_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(order_start, pattern=r"^order:")],
         states={
