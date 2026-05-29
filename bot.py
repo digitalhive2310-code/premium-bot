@@ -2,11 +2,15 @@ import json
 import os
 import math
 import logging
+import threading
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any
 
 from dotenv import load_dotenv
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -31,15 +35,59 @@ BANK_DETAILS = os.getenv("BANK_DETAILS", "Ask admin for bank details")
 CRYPTO_DETAILS = os.getenv("CRYPTO_DETAILS", "Ask admin for crypto wallet")
 GIFT_CARD_DETAILS = os.getenv("GIFT_CARD_DETAILS", "Ask admin for gift card details")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip().isdigit()]
-USD_RATE = float(os.getenv("USD_RATE", "96.01"))  # 1 USD - INR rate; update anytime in .env
+USD_RATE = float(os.getenv("USD_RATE", "96.01"))
+
+GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Order History")
 
 BASE_DIR = Path(__file__).parent
 PRODUCTS_FILE = BASE_DIR / "products.json"
 ORDERS_FILE = BASE_DIR / "orders.json"
 
+SECRET_PATH = Path("/etc/secrets/credentials.json")
+LOCAL_PATH = BASE_DIR / "credentials.json"
+CREDENTIALS_FILE = SECRET_PATH if SECRET_PATH.exists() else LOCAL_PATH
+
 EMAIL, WHATSAPP, TELEGRAM_USERNAME, PAYMENT_METHOD, PAYMENT_PROOF = range(5)
 SEARCH_QUERY = 20
 PAGE_SIZE = 7
+
+# --- TINY WEB SERVER TO FIX RENDER PORT TIMEOUT ---
+def run_health_server():
+    class HealthHandler(SimpleHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"Bot is live and running 24/7!")
+
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    logging.info(f"Health server started on port {port}")
+    server.serve_forever()
+
+def append_to_google_sheets(order: Dict[str, Any]):
+    try:
+        if not CREDENTIALS_FILE.exists():
+            logging.error("credentials.json file not found. Skipping Sheets sync.")
+            return
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name(str(CREDENTIALS_FILE), scope)
+        client = gspread.authorize(creds)
+        sheet = client.open(GOOGLE_SHEET_NAME).sheet1
+        if not sheet.get_all_values():
+            sheet.append_row([
+                "Order ID", "Date", "Customer Name", "Customer ID", 
+                "Product Name", "Price", "Email", "WhatsApp", 
+                "Telegram", "Payment Method", "Payment Proof", "Status"
+            ])
+        sheet.append_row([
+            order.get("order_id"), order.get("created_at"), order.get("customer_name"),
+            order.get("customer_id"), order.get("product_name"), order.get("price"),
+            order.get("email"), order.get("whatsapp"), order.get("telegram_username"),
+            order.get("payment_method"), order.get("payment_proof"), order.get("status")
+        ])
+    except Exception as e:
+        logging.error(f"Failed to write to Google Sheets: {e}")
 
 def load_products() -> List[Dict[str, Any]]:
     with open(PRODUCTS_FILE, "r", encoding="utf-8") as f:
@@ -125,8 +173,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
-    if data == "noop":
-        return
+    if data == "noop": return
     if data == "home":
         await start(update, context)
         return
@@ -139,11 +186,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _, category, page = data.split(":", 2)
         page = int(page)
         items = [p for p in load_products() if p["category"] == category]
-        await query.edit_message_text(
-            f"📁 <b>{category}</b> products:",
-            reply_markup=products_keyboard(items, f"cat:{category}", page),
-            parse_mode=ParseMode.HTML,
-        )
+        await query.edit_message_text(f"📁 <b>{category}</b> products:", reply_markup=products_keyboard(items, f"cat:{category}", page), parse_mode=ParseMode.HTML)
         return
     if data.startswith("product:"):
         product_id = data.split(":", 1)[1]
@@ -172,10 +215,7 @@ async def order_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Product not found.")
         return ConversationHandler.END
     context.user_data["order"] = {"product_id": product_id, "product_name": product["name"], "price": money(product)}
-    await query.edit_message_text(
-        f"🛒 <b>Order Started</b>\n\nProduct: {product['name']}\nPrice: {money(product)}\n\n📧 Please send your email address for delivery.",
-        parse_mode=ParseMode.HTML,
-    )
+    await query.edit_message_text(f"🛒 <b>Order Started</b>\n\nProduct: {product['name']}\nPrice: {money(product)}\n\n📧 Please send your email address for delivery.", parse_mode=ParseMode.HTML)
     return EMAIL
 
 async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -202,16 +242,23 @@ async def payment_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     method = query.data.split(":", 1)[1]
     context.user_data["order"]["payment_method"] = method
+    
     details = {
-        "UPI": f"UPI ID: {UPI_ID}",
-        "Bank Transfer": BANK_DETAILS,
-        "Crypto": CRYPTO_DETAILS,
-        "Gift Card": GIFT_CARD_DETAILS,
+        "UPI": f"👉 <b>UPI ID:</b> <code>{UPI_ID}</code>\n\n📸 <i>If you need a QR code, feel free to text us on WhatsApp or check our Premium Community channel!</i>",
+        "Bank Transfer": f"🏦 <b>Our Bank Details:</b>\n{BANK_DETAILS}",
+        "Crypto": f"🪙 <b>Crypto Wallet:</b>\n{CRYPTO_DETAILS}",
+        "Gift Card": f"🎁 <b>Gift Card Instructions:</b>\n{GIFT_CARD_DETAILS}",
     }.get(method, "Contact admin for payment details")
-    await query.edit_message_text(
-        f"💳 <b>{method}</b> selected.\n\n{details}\n\nAfter payment, send transaction ID or screenshot note here.",
-        parse_mode=ParseMode.HTML,
+    
+    instruction_text = (
+        f"💳 <b>{method} Payment Method Selected</b>\n\n"
+        f"{details}\n\n"
+        "🧬 <b>HOW TO SUBMIT PROOF:</b>\n"
+        "1️⃣ You can paste your **Transaction ID / Reference Number** right here in this chat.\n"
+        "2️⃣ Or, if you prefer, you can message us directly on WhatsApp or Telegram with your screenshot.\n\n"
+        "📝 Please reply here with your transaction ID or simply type <i>'Sent on WhatsApp'</i> to finish your registration below:"
     )
+    await query.edit_message_text(instruction_text, parse_mode=ParseMode.HTML)
     return PAYMENT_PROOF
 
 async def payment_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -227,9 +274,19 @@ async def payment_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
     orders.append(order)
     save_orders(orders)
 
-    await update.message.reply_text(
-        f"✅ Order received!\n\nOrder ID: #{order['order_id']}\nProduct: {order['product_name']}\n\nJoin our Telegram community for updates:\n{COMMUNITY_LINK}\n\nOur team will verify payment and deliver via email.",
+    append_to_google_sheets(order)
+
+    success_text = (
+        f"🎉 <b>Order Submitted Successfully! (Order ID: #{order['order_id']})</b>\n\n"
+        f"📦 <b>Product:</b> {order['product_name']}\n\n"
+        "🛡️ <b>Don't worry about a thing!</b> Our team has received your order details. "
+        "We are verifying your payment right now and will process your delivery shortly.\n\n"
+        "📥 Your premium login details will be delivered directly to your email address.\n\n"
+        f"💬 <b>Need instant support or want to send a screenshot link?</b>\n"
+        f"• Message us on <a href='https://wa.me/{WHATSAPP_NUMBER}'>WhatsApp Support</a>\n"
+        f"• Join our <a href='{COMMUNITY_LINK}'>Premium Community Channel</a> for live stock updates!"
     )
+    await update.message.reply_text(success_text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
     admin_text = (
         f"🔔 <b>New Order #{order['order_id']}</b>\n"
@@ -245,8 +302,7 @@ async def payment_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for admin_id in ADMIN_IDS:
         try:
             await context.bot.send_message(admin_id, admin_text, parse_mode=ParseMode.HTML)
-        except Exception as e:
-            logging.warning("Could not notify admin %s: %s", admin_id, e)
+        except Exception as e: pass
     context.user_data.pop("order", None)
     return ConversationHandler.END
 
@@ -256,10 +312,7 @@ async def search_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not results:
         await update.message.reply_text("No product found. Try another name.", reply_markup=back_home_keyboard())
         return ConversationHandler.END
-    await update.message.reply_text(
-        f"🔎 Found {len(results)} product(s):",
-        reply_markup=products_keyboard(results, "searchpage", 0),
-    )
+    await update.message.reply_text(f"🔎 Found {len(results)} product(s):", reply_markup=products_keyboard(results, "searchpage", 0))
     context.user_data["search_results"] = results
     return ConversationHandler.END
 
@@ -276,20 +329,13 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("Admin access only.")
-        return
+    if update.effective_user.id not in ADMIN_IDS: return
     orders = load_orders()
     pending = sum(1 for o in orders if o.get("status") == "Pending")
-    await update.message.reply_text(
-        f"📊 <b>Admin Panel</b>\n\nTotal orders: {len(orders)}\nPending orders: {pending}\n\nCommands:\n/orders - recent orders\n/products_count - total products",
-        parse_mode=ParseMode.HTML
-    )
+    await update.message.reply_text(f"📊 <b>Admin Panel</b>\n\nTotal orders: {len(orders)}\nPending orders: {pending}\n\nCommands:\n/orders - recent orders\n/products_count - total products", parse_mode=ParseMode.HTML)
 
 async def orders_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("Admin access only.")
-        return
+    if update.effective_user.id not in ADMIN_IDS: return
     orders = load_orders()[-10:]
     if not orders:
         await update.message.reply_text("No orders yet.")
@@ -300,9 +346,7 @@ async def orders_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 async def products_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ADMIN_IDS:
-        await update.message.reply_text("Admin access only.")
-        return
+    if update.effective_user.id not in ADMIN_IDS: return
     await update.message.reply_text(f"📦 Total products: {len(load_products())}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -310,7 +354,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN missing. Add it in .env")
+        raise RuntimeError("BOT_TOKEN missing.")
+
+    # Start the local health web server thread right before starting the bot polling
+    threading.Thread(target=run_health_server, daemon=True).start()
 
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -332,21 +379,14 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    # Register conversation handlers first
     app.add_handler(order_conv)
     app.add_handler(search_conv)
-
-    # Admin & General command handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("orders", orders_cmd))
     app.add_handler(CommandHandler("products_count", products_count))
-
-    # Fallback query handlers
     app.add_handler(CallbackQueryHandler(search_page_handler, pattern=r"^searchpage:"))
     app.add_handler(CallbackQueryHandler(button_handler))
-    
-    # Catch-all text messages handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print(f"{STORE_NAME} bot is running...")
