@@ -280,10 +280,16 @@ async def payment_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✨ <b>HOW TO SUBMIT PROOF:</b>\n"
         "1️⃣ You can paste your **Transaction ID / Reference Number** right here in this chat.\n"
         "2️⃣ Or, if you prefer, you can message us directly on WhatsApp or Telegram with your screenshot.\n\n"
-        "📝 Please reply here with your transaction ID or simply type <i>'Sent on WhatsApp'</i> to finish your registration below:"
+        "📝 Please reply here with your transaction ID or choose another payment option below:"
     )
     
-    await query.edit_message_text(instruction_text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    # 🔄 This keeps the 4 payment buttons alive so they can switch seamlessly
+    payment_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("UPI", callback_data="pay:UPI"), InlineKeyboardButton("Bank Transfer", callback_data="pay:Bank Transfer")],
+        [InlineKeyboardButton("Crypto", callback_data="pay:Crypto"), InlineKeyboardButton("Gift Card", callback_data="pay:Gift Card")],
+    ])
+    
+    await query.edit_message_text(instruction_text, reply_markup=payment_keyboard, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
     return PAYMENT_PROOF
 
 async def payment_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
