@@ -206,6 +206,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🔎 Send me the product name you want to search.", reply_markup=back_home_keyboard())
         return SEARCH_QUERY
 
+    # 👇 PASTE THIS CHECK HERE TO MAKE THE TOGGLE BUTTONS WORK LIVE:
+    if data.startswith("pay:"):
+        return await payment_method(update, context)
 async def order_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
