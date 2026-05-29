@@ -236,7 +236,6 @@ async def get_telegram_username(update: Update, context: ContextTypes.DEFAULT_TY
     ])
     await update.message.reply_text("💳 Choose your payment method:", reply_markup=kb)
     return PAYMENT_METHOD
-
 async def payment_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -244,21 +243,47 @@ async def payment_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["order"]["payment_method"] = method
     
     details = {
-        "UPI": f"👉 <b>UPI ID:</b> <code>{UPI_ID}</code>\n\n📸 <i>If you need a QR code, feel free to text us on WhatsApp or check our Premium Community channel!</i>",
-        "Bank Transfer": f"🏦 <b>Our Bank Details:</b>\n{BANK_DETAILS}",
-        "Crypto": f"🪙 <b>Crypto Wallet:</b>\n{CRYPTO_DETAILS}",
-        "Gift Card": f"🎁 <b>Gift Card Instructions:</b>\n{GIFT_CARD_DETAILS}",
+        "UPI": (
+            "📱 <b>UPI Payment</b>\n\n"
+            "👉 <b>UPI ID:</b> <code>premiumonbudget@ybl</code>\n"
+            "<i>(💡 Tap the UPI ID above to instantly copy it!)</i>\n\n"
+            "➡️ Open your payment app (PhonePe, Google Pay, Paytm) to scan or pay the exact order amount."
+        ),
+        "Bank Transfer": (
+            "🏦 <b>Bank Transfer Details</b>\n\n"
+            "• <b>Bank Name:</b> Punjab National Bank\n"
+            "• <b>Account Number:</b> <code>1988000102980662</code>\n"
+            "• <b>IFSC Code:</b> <code>PUNB0198800</code>\n"
+            "• <b>Account Holder Name:</b> Abhishek\n"
+            "• <b>Branch:</b> Bhikaiji Cama Place, New Delhi\n\n"
+            "<i>(💡 Tap the Account Number or IFSC to copy them instantly!)</i>"
+        ),
+        "Crypto": (
+            "🪙 <b>Crypto Payment (USDT - TRC20)</b>\n\n"
+            "👉 <b>Network:</b> TRON (TRC20)\n"
+            "👉 <b>Wallet Address:</b>\n<code>TM9F5132yX2XFkv6HdBuxuC9yXwRBv1Fhf</code>\n\n"
+            "<i>(💡 Tap the wallet address above to copy it instantly!)</i>"
+        ),
+        "Gift Card": (
+            "🎁 <b>Gift Card Payment</b>\n\n"
+            "• We accept <b>Amazon Gift Cards (INR)</b>.\n"
+            "👉 You can purchase a gift card code directly here:\n"
+            "https://gameseal.com/amazon-gift-card-1000-inr-key-india\n\n"
+            "📝 Once purchased, simply paste your digital gift card claim key right here in this chat!"
+        ),
     }.get(method, "Contact admin for payment details")
     
     instruction_text = (
         f"💳 <b>{method} Payment Method Selected</b>\n\n"
         f"{details}\n\n"
-        "🧬 <b>HOW TO SUBMIT PROOF:</b>\n"
+        "---"
+        "✨ <b>HOW TO SUBMIT PROOF:</b>\n"
         "1️⃣ You can paste your **Transaction ID / Reference Number** right here in this chat.\n"
         "2️⃣ Or, if you prefer, you can message us directly on WhatsApp or Telegram with your screenshot.\n\n"
         "📝 Please reply here with your transaction ID or simply type <i>'Sent on WhatsApp'</i> to finish your registration below:"
     )
-    await query.edit_message_text(instruction_text, parse_mode=ParseMode.HTML)
+    
+    await query.edit_message_text(instruction_text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
     return PAYMENT_PROOF
 
 async def payment_proof(update: Update, context: ContextTypes.DEFAULT_TYPE):
